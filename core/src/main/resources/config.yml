@@ -171,6 +171,11 @@ above-bedrock-nether-building: false
 # want to download the resource packs.
 force-resource-packs: true
 
+# Enable features that require clients to have GeyserOptionalPack installed.
+# If enabled, it is recommended to ensure force-resource-packs is enabled and install GeyserOptionalPack to the packs folder.
+# Download GeyserOptionalPack from https://ci.opencollab.dev/job/GeyserMC/job/GeyserOptionalPack/job/master/lastSuccessfulBuild/artifact/GeyserOptionalPack.mcpack.
+enable-optional-pack-required-features: false
+
 # Allows Xbox achievements to be unlocked.
 # THIS DISABLES ALL COMMANDS FROM SUCCESSFULLY RUNNING FOR BEDROCK IN-GAME, as otherwise Bedrock thinks you are cheating.
 xbox-achievements-enabled: false
