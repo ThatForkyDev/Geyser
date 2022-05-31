@@ -92,7 +92,6 @@ public class JavaLevelParticlesTranslator extends PacketTranslator<ClientboundLe
      * @param value the float value of the molang variable.
      * @return a method to create a member array of molang sub-variables to be inserted into molangVariablesJson
      */
-
     private static ObjectNode createMolangVariablesObject(String molangVariable, float value) {
         ObjectMapper mapper = new ObjectMapper();
         ObjectNode particleValue = mapper.createObjectNode();
@@ -109,7 +108,6 @@ public class JavaLevelParticlesTranslator extends PacketTranslator<ClientboundLe
      * @param nodes an array of ObjectNodes to use as sub-variables.
      * @return a method to create a member array of molang sub-variables to be inserted into molangVariablesJson.
      */
-
     private static ObjectNode createMolangVariablesMemberArrayObject(String molangVariable, ObjectNode[] nodes) {
         ObjectMapper mapper = new ObjectMapper();
         ObjectNode particleMember = mapper.createObjectNode();
@@ -131,7 +129,6 @@ public class JavaLevelParticlesTranslator extends PacketTranslator<ClientboundLe
      * @param velocityOffset the velocity offset to apply to the particle.
      * @return a method to create an array of standard particle variables to be inserted into molangVariablesJson
      */
-
     private static ArrayNode createDefaultMolangVariablesArray(int count, float offsetX, float offsetY, float offsetZ, float velocityOffset) {
         ObjectMapper mapper = new ObjectMapper();
         ObjectNode particleCount = createMolangVariablesObject("variable.amount", (float) count);
@@ -203,6 +200,7 @@ public class JavaLevelParticlesTranslator extends PacketTranslator<ClientboundLe
                     stringPacket.setDimensionId(dimensionId);
                     stringPacket.setPosition(position);
                     ArrayNode defaultMolangVariableArray = createDefaultMolangVariablesArray(count, offsetX, offsetY, offsetZ, velocityOffset);
+                    // LOGGING: REMEMBER TO REMOVE THIS AFTER TESTING
                     session.getGeyser().getLogger().debug("Molang Particle Variables:" + defaultMolangVariableArray.toString());
                     stringPacket.setMolangVariablesJson(Optional.ofNullable(defaultMolangVariableArray.toString()));
                     return stringPacket;
