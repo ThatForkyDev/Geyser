@@ -54,14 +54,17 @@ import java.util.Arrays;
 
 @Translator(packet = ClientboundLevelParticlesPacket.class)
 public class JavaLevelParticlesTranslator extends PacketTranslator<ClientboundLevelParticlesPacket> {
-
+    
+    boolean optionalPackAssured = GeyserImpl.getInstance().getConfig().isEnableOptionalPackRequiredFeatures();
+    
     @Override
     public void translate(GeyserSession session, ClientboundLevelParticlesPacket packet) {
-        boolean optionalPackAssured = GeyserImpl.getInstance().getConfig().isEnableOptionalPackRequiredFeatures();
+        // Particle spawn functions
         Function<Vector3f, BedrockPacket> optionalPackParticleCreateFunction = createOptionalPackParticle(
             session, packet.getParticle(), packet.getAmount(), packet.getOffsetX(), packet.getOffsetY(), packet.getOffsetZ(), packet.getVelocityOffset()
         );
         Function<Vector3f, BedrockPacket> particleCreateFunction = createParticle(session, packet.getParticle());
+
         if (optionalPackAssured && optionalPackParticleCreateFunction != null) {
             // Spawn particle using special variables in OptionalPack for correct count, volume, velocity, etc.
             Vector3f position = Vector3f.from(packet.getX(), packet.getY(), packet.getZ());
@@ -86,6 +89,13 @@ public class JavaLevelParticlesTranslator extends PacketTranslator<ClientboundLe
             session.getGeyser().getLogger().debug("Unhandled particle packet: " + packet);
         }
     }
+
+    /**
+     * The following methods are used to build the data contained in the molangVariablesJson field of the SpawnParticleEffectPacket
+     * This is used to create particles with the correct count, volume, velocity, etc.
+     * See https://wiki.vg/Bedrock_Protocol#Spawn_Particle_Effect
+     * Note that this will only be effective if GeyserOptionalPack is applied and enable-optional-pack-required-features is set to true in the config
+     */
 
     /**
      * @param molangVariable the name of the molang variable.
@@ -122,6 +132,17 @@ public class JavaLevelParticlesTranslator extends PacketTranslator<ClientboundLe
     }
 
     /**
+     * @param nodes the nodes containing the variables of the array.
+     * @return a method to create an array of standard particle variables to be inserted into molangVariablesJson
+     */
+    private static ArrayNode createGenericMolangVariablesArray(ObjectNode[] nodes) {
+        ObjectMapper mapper = new ObjectMapper();
+        ArrayNode particleVariables = mapper.createArrayNode();
+        particleVariables.addAll(Arrays.asList(nodes));
+        return particleVariables;
+    }
+
+    /**
      * @param count the amount of particles to create.
      * @param offsetX the X offset to apply to the particle volume.
      * @param offsetY the Y offset to apply to the particle volume.
@@ -130,16 +151,34 @@ public class JavaLevelParticlesTranslator extends PacketTranslator<ClientboundLe
      * @return a method to create an array of standard particle variables to be inserted into molangVariablesJson
      */
     private static ArrayNode createDefaultMolangVariablesArray(int count, float offsetX, float offsetY, float offsetZ, float velocityOffset) {
-        ObjectMapper mapper = new ObjectMapper();
         ObjectNode particleCount = createMolangVariablesObject("variable.amount", (float) count);
         ObjectNode particleSpeed = createMolangVariablesObject("variable.velocity", velocityOffset);
-        ObjectNode particleOffsetX = createMolangVariablesObject(".x", offsetX);
-        ObjectNode particleOffsetY = createMolangVariablesObject(".y", offsetY);
-        ObjectNode particleOffsetZ = createMolangVariablesObject(".z", offsetZ);
-        ObjectNode particleOffset = createMolangVariablesMemberArrayObject("variable.offset", new ObjectNode[]{particleOffsetX, particleOffsetY, particleOffsetZ});
-        ArrayNode molangVariableArray = mapper.createArrayNode();
-        molangVariableArray.addAll(Arrays.asList(particleCount, particleSpeed, particleOffset));
+        ObjectNode particleOffset = createMolangVariablesMemberArrayObject("variable.offset", new ObjectNode[]{
+            createMolangVariablesObject(".x", offsetX), 
+            createMolangVariablesObject(".y", offsetY), 
+            createMolangVariablesObject(".z", offsetZ)
+        });
+        ArrayNode molangVariableArray = createGenericMolangVariablesArray(new ObjectNode[]{particleCount, particleSpeed, particleOffset});
         return molangVariableArray;
+    }
+
+    /**
+     * @param session the GeyserSession to use for sending packets.
+     * @param position the position of the particle.
+     * @param particleMapping the mapping of the particle to use.
+     * @param molangVariablesJson an ArrayNode of molang variables to use for the molangVariablesJson packet.
+     * @return a method to create a standard SpawnParticleEffect packet.
+     */
+    private static SpawnParticleEffectPacket returnParticleEffectPacketMolang(GeyserSession session, Vector3f position, ParticleMapping particleMapping, ArrayNode molangVariablesJson){
+        int dimensionId = DimensionUtils.javaToBedrock(session.getDimension());
+        SpawnParticleEffectPacket stringPacket = new SpawnParticleEffectPacket();
+        stringPacket.setIdentifier(particleMapping.identifier());
+        stringPacket.setDimensionId(dimensionId);
+        stringPacket.setPosition(position);
+        stringPacket.setMolangVariablesJson(Optional.ofNullable(molangVariablesJson.toString()));
+        // LOGGING (Remove in production!)
+        session.getGeyser().getLogger().debug("Molang Particle Variables:" + molangVariablesJson.toString());
+        return stringPacket;
     }
 
     /**
@@ -156,24 +195,43 @@ public class JavaLevelParticlesTranslator extends PacketTranslator<ClientboundLe
     private Function<Vector3f, BedrockPacket> createOptionalPackParticle(GeyserSession session, Particle particle, int count, float offsetX, float offsetY, float offsetZ, float velocityOffset) {
         ParticleMapping particleMapping = Registries.PARTICLES.get(particle.getType());
         switch (particle.getType()) {
-            case BLOCK, FALLING_DUST, ITEM -> {
+            case BLOCK, BLOCK_MARKER, FALLING_DUST, ITEM -> {
                 // These particles must be handled by level event due to inclusion of item/block data
                 return null;
             }
-            case BLOCK_MARKER -> { //TODO
-                // Use level event for unused particle with terrain texture atlas
-                return null;
-            }
-            case DUST -> { //TODO
-                // Use molangVariablesJSON for color values
+            case DUST -> {
+                // Use molangVariablesJSON for color and scale values
                 // Red Float 0-1
                 // Green Float 0-1
                 // Blue Float 0-1
                 // Scale Float 0.01-4
-                return null;
+
+                // Get the data from the particle
+                DustParticleData data = (DustParticleData) particle.getData();
+
+                // Get the color values from the particle
+                ObjectNode particleColor = createMolangVariablesMemberArrayObject("variable.color", new ObjectNode[]{
+                    createMolangVariablesObject(".r", data.getRed()), 
+                    createMolangVariablesObject(".g", data.getGreen()), 
+                    createMolangVariablesObject(".b", data.getBlue())
+                });
+
+                // Get the dust size value from the particle
+                ObjectNode scale = createMolangVariablesObject("variable.scale", data.getScale());
+
+                // Create the array of variables
+                ArrayNode specialMolangVariables = createGenericMolangVariablesArray(new ObjectNode[]{particleColor, scale});
+                ArrayNode defaultMolangVariables = createDefaultMolangVariablesArray(count, offsetX, offsetY, offsetZ, velocityOffset);
+                specialMolangVariables.add(defaultMolangVariables);
+
+                // Create the packet
+                return (position) -> {
+                    SpawnParticleEffectPacket stringPacket = returnParticleEffectPacketMolang(session, position, particleMapping, specialMolangVariables);
+                    return stringPacket;
+                };
             }
-            case DUST_COLOR_TRANSITION -> { //TODO
-                // Use molangVariablesJSON for color values
+            case DUST_COLOR_TRANSITION -> {
+                // Use molangVariablesJSON for start color, end color, and scale values
                 // FromRed Float 0-1
                 // FromGreen Float 0-1
                 // FromBlue Float 0-1
@@ -181,7 +239,36 @@ public class JavaLevelParticlesTranslator extends PacketTranslator<ClientboundLe
                 // Red Float 0-1
                 // Green Float 0-1
                 // Blue Float 0-1
-                return null;
+
+                // Get the start color values from the particle
+                DustParticleData startData = (DustParticleData) particle.getData();
+                ObjectNode startParticleColor = createMolangVariablesMemberArrayObject("variable.start_color", new ObjectNode[]{
+                    createMolangVariablesObject(".r", startData.getRed()), 
+                    createMolangVariablesObject(".g", startData.getGreen()), 
+                    createMolangVariablesObject(".b", startData.getBlue())
+                });
+                
+                // Get the end color values from the particle
+                DustColorTransitionParticleData endData = (DustColorTransitionParticleData) particle.getData();
+                ObjectNode endParticleColor = createMolangVariablesMemberArrayObject("variable.end_color", new ObjectNode[]{
+                    createMolangVariablesObject(".r", endData.getNewRed()), 
+                    createMolangVariablesObject(".g", endData.getNewGreen()), 
+                    createMolangVariablesObject(".b", endData.getNewBlue())
+                });
+
+                // Get the dust size value from the particle
+                ObjectNode scale = createMolangVariablesObject("variable.scale", startData.getScale());
+
+                // Create the array of variables
+                ArrayNode specialMolangVariables = createGenericMolangVariablesArray(new ObjectNode[]{startParticleColor, endParticleColor, scale});
+                ArrayNode defaultMolangVariables = createDefaultMolangVariablesArray(count, offsetX, offsetY, offsetZ, velocityOffset);
+                specialMolangVariables.add(defaultMolangVariables);
+
+                // Create the packet
+                return (position) -> {
+                    SpawnParticleEffectPacket stringPacket = returnParticleEffectPacketMolang(session, position, particleMapping, specialMolangVariables);
+                    return stringPacket;
+                };
             }
             case VIBRATION -> { //TODO
                 // No idea how this works
@@ -194,20 +281,13 @@ public class JavaLevelParticlesTranslator extends PacketTranslator<ClientboundLe
             }
             default -> {
                 return (position) -> {
-                    int dimensionId = DimensionUtils.javaToBedrock(session.getDimension());
-                    SpawnParticleEffectPacket stringPacket = new SpawnParticleEffectPacket();
-                    stringPacket.setIdentifier(particleMapping.identifier());
-                    stringPacket.setDimensionId(dimensionId);
-                    stringPacket.setPosition(position);
-                    ArrayNode defaultMolangVariableArray = createDefaultMolangVariablesArray(count, offsetX, offsetY, offsetZ, velocityOffset);
-                    // LOGGING: REMEMBER TO REMOVE THIS AFTER TESTING
-                    session.getGeyser().getLogger().debug("Molang Particle Variables:" + defaultMolangVariableArray.toString());
-                    stringPacket.setMolangVariablesJson(Optional.ofNullable(defaultMolangVariableArray.toString()));
+                    SpawnParticleEffectPacket stringPacket = returnParticleEffectPacketMolang(session, position, particleMapping, createDefaultMolangVariablesArray(count, offsetX, offsetY, offsetZ, velocityOffset));
                     return stringPacket;
                 };
             }
         }
     }
+
     /**
      * @param session the Bedrock client session.
      * @param particle the Java particle to translate to a Bedrock equivalent.
@@ -225,6 +305,19 @@ public class JavaLevelParticlesTranslator extends PacketTranslator<ClientboundLe
                     packet.setData(blockState);
                     return packet;
                 };
+            }
+            case BLOCK_MARKER -> {
+                if (optionalPackAssured) {
+                    int blockState = session.getBlockMappings().getBedrockBlockId(((BlockParticleData) particle.getData()).getBlockState());
+                    return (position) -> {
+                        LevelEventPacket packet = new LevelEventPacket();
+                        packet.setType(LevelEventType.PARTICLE_DESTROY_BLOCK_NO_SOUND);
+                        packet.setPosition(position);
+                        packet.setData(blockState);
+                        return packet;
+                };} else {
+                    return null;
+                }
             }
             case FALLING_DUST -> {
                 int blockState = session.getBlockMappings().getBedrockBlockId(((FallingDustParticleData) particle.getData()).getBlockState());
