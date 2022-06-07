@@ -151,12 +151,12 @@ public class JavaLevelParticlesTranslator extends PacketTranslator<ClientboundLe
      * @return a method to create an array of standard particle variables to be inserted into molangVariablesJson
      */
     private static ArrayNode createDefaultMolangVariablesArray(int count, float offsetX, float offsetY, float offsetZ, float velocityOffset) {
-        ObjectNode particleCount = createMolangVariablesObject("variable.amount", (float) count);
+        ObjectNode particleCount = createMolangVariablesObject("variable.amount", count == 0 ? 1 : count);
         ObjectNode particleSpeed = createMolangVariablesObject("variable.velocity", velocityOffset);
         ObjectNode particleOffset = createMolangVariablesMemberArrayObject("variable.offset", new ObjectNode[]{
-            createMolangVariablesObject(".x", offsetX), 
-            createMolangVariablesObject(".y", offsetY), 
-            createMolangVariablesObject(".z", offsetZ)
+            createMolangVariablesObject(".x", offsetX * 4), 
+            createMolangVariablesObject(".y", offsetY * 4), 
+            createMolangVariablesObject(".z", offsetZ * 4)
         });
         ArrayNode molangVariableArray = createGenericMolangVariablesArray(new ObjectNode[]{particleCount, particleSpeed, particleOffset});
         return molangVariableArray;
@@ -189,8 +189,8 @@ public class JavaLevelParticlesTranslator extends PacketTranslator<ClientboundLe
      * @param offsetY the Y offset to apply to the particle volume.
      * @param offsetZ the Z offset to apply to the particle volume.
      * @param velocityOffset the velocity offset to apply to the particle.
-     * @return a function to create a packet with a specified particle, in the event we need to spawn multiple particles
-     * with different offsets.
+     * @return a function to create a packet with a specified particle, passing the proper molang variables to GeyserOptionalPack to
+     * closer simulate Java particles.
      */
     private Function<Vector3f, BedrockPacket> createOptionalPackParticle(GeyserSession session, Particle particle, int count, float offsetX, float offsetY, float offsetZ, float velocityOffset) {
         ParticleMapping particleMapping = Registries.PARTICLES.get(particle.getType());
@@ -270,8 +270,8 @@ public class JavaLevelParticlesTranslator extends PacketTranslator<ClientboundLe
                     return stringPacket;
                 };
             }
-            case VIBRATION -> { //TODO
-                // No idea how this works
+            case VIBRATION -> { //TODO 1.19
+                // No idea how this works (But it could!)
                 // Origin Position 'Starting position'
                 // PositionType String 'Type of destination'
                 // BlockPosition Position 'Present if PositionType is "minecraft:block"'
@@ -311,7 +311,7 @@ public class JavaLevelParticlesTranslator extends PacketTranslator<ClientboundLe
                     int blockState = session.getBlockMappings().getBedrockBlockId(((BlockParticleData) particle.getData()).getBlockState());
                     return (position) -> {
                         LevelEventPacket packet = new LevelEventPacket();
-                        packet.setType(LevelEventType.PARTICLE_DESTROY_BLOCK_NO_SOUND);
+                        packet.setType(LevelEventType.PARTICLE_TERRAIN);
                         packet.setPosition(position);
                         packet.setData(blockState);
                         return packet;
