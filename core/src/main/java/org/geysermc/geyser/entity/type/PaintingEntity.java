@@ -79,6 +79,7 @@ public class PaintingEntity extends Entity {
     private Vector3f fixOffset(PaintingType paintingName) {
         Vector3f position = super.position;
         
+        // Test issue due to VV
         //position = position.add(0.5, 0.5, 0.5);
         double widthOffset = paintingName.getWidth() > 1 ? 0.5 : 0;
         double heightOffset = paintingName.getHeight() > 1 && paintingName.getHeight() != 3 ? 0.5 : 0;
