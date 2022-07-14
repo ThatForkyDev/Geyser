@@ -1,13 +1,6 @@
 name: Build Push
 
-on:
-  push:
-    branches:    
-    - '*'
-    - '*/*'
-    - '**'
-    branches-ignore:
-      - master
+on: workflow_dispatch
 
 jobs:
   check-build-type:
@@ -18,12 +11,14 @@ jobs:
       build-type: ${{ steps.check_step.outputs.build-type }}
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout Code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
       - name: Get current branch
         id: check_step
         run: |
-          raw=$(git branch -r --contains ${{ github.ref }})
-          branch=${raw##*/}
+          branch=$(git for-each-ref --count 1 --sort=committerdate refs/heads/ --format='%(refname:short)')
           echo "::set-output name=branch::$branch"
           echo "Branch is $branch."
           git clone https://github.com/Kas-tle/Geyser.git --branch $branch --single-branch
