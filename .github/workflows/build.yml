@@ -1,6 +1,13 @@
 name: Build Push
 
-on: workflow_dispatch
+on:
+  push:
+    branches:    
+    - '*'
+    - '*/*'
+    - '**'
+    branches-ignore:
+      - master
 
 jobs:
   check-build-type:
