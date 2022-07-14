@@ -1,6 +1,13 @@
-name: Build
+name: Manual build
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        # Friendly description to show in the UI instead of 'name'
+        description: 'Branch'
+        required: false
+        default: 'none'
 
 jobs:
   check-build-type:
