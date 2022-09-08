@@ -27,10 +27,12 @@ package org.geysermc.geyser.event;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.geysermc.event.Event;
+import org.geysermc.event.PostOrder;
 import org.geysermc.event.bus.impl.OwnedEventBusImpl;
 import org.geysermc.event.subscribe.OwnedSubscriber;
 import org.geysermc.event.subscribe.Subscribe;
 import org.geysermc.geyser.api.event.EventBus;
+import org.geysermc.geyser.api.event.EventRegistrar;
 import org.geysermc.geyser.api.event.EventSubscriber;
 import org.geysermc.geyser.api.extension.Extension;
 
@@ -39,26 +41,32 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 @SuppressWarnings("unchecked")
-public final class GeyserEventBus extends OwnedEventBusImpl<Extension, Event, EventSubscriber<? extends Event>>
-        implements EventBus {
+public final class GeyserEventBus extends OwnedEventBusImpl<EventRegistrar, Event, EventSubscriber<EventRegistrar, ? extends Event>>
+        implements EventBus<EventRegistrar> {
     @Override
-    protected <L, T extends Event, B extends OwnedSubscriber<Extension, T>> B makeSubscription(
-            Extension owner, Class<T> eventClass, Subscribe subscribe,
-            L listener, BiConsumer<L, T> handler) {
+    protected <L, T extends Event, B extends OwnedSubscriber<EventRegistrar, T>> B makeSubscription(
+            @NonNull EventRegistrar owner,
+            @NonNull Class<T> eventClass,
+            @NonNull Subscribe subscribe,
+            @NonNull L listener,
+            @NonNull BiConsumer<L, T> handler) {
         return (B) new GeyserEventSubscriber<>(
                 owner, eventClass, subscribe.postOrder(), subscribe.ignoreCancelled(), listener, handler
         );
     }
 
     @Override
-    protected <T extends Event, B extends OwnedSubscriber<Extension, T>> B makeSubscription(
-            Extension owner, Class<T> eventClass, Consumer<T> handler) {
-        return (B) new GeyserEventSubscriber<>(owner, eventClass, handler);
+    protected <T extends Event, B extends OwnedSubscriber<EventRegistrar, T>> B makeSubscription(
+            @NonNull EventRegistrar owner,
+            @NonNull Class<T> eventClass,
+            @NonNull Consumer<T> handler,
+            @NonNull PostOrder postOrder) {
+        return (B) new GeyserEventSubscriber<>(owner, eventClass, handler, postOrder);
     }
 
     @Override
     @NonNull
-    public <T extends Event> Set<? extends EventSubscriber<T>> subscribers(@NonNull Class<T> eventClass) {
+    public <T extends Event> Set<? extends EventSubscriber<EventRegistrar, T>> subscribers(@NonNull Class<T> eventClass) {
         return castGenericSet(super.subscribers(eventClass));
     }
 }

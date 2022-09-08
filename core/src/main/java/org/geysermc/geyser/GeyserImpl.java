@@ -57,6 +57,7 @@ import org.geysermc.floodgate.crypto.FloodgateCipher;
 import org.geysermc.floodgate.news.NewsItemAction;
 import org.geysermc.geyser.api.GeyserApi;
 import org.geysermc.geyser.api.event.EventBus;
+import org.geysermc.geyser.api.event.EventRegistrar;
 import org.geysermc.geyser.api.event.lifecycle.GeyserPostInitializeEvent;
 import org.geysermc.geyser.api.event.lifecycle.GeyserPreInitializeEvent;
 import org.geysermc.geyser.api.event.lifecycle.GeyserShutdownEvent;
@@ -143,8 +144,8 @@ public class GeyserImpl implements GeyserApi {
     private final PlatformType platformType;
     private final GeyserBootstrap bootstrap;
 
-    private final EventBus eventBus;
-    private final GeyserExtensionManager extensionManager;
+    private final EventBus<EventRegistrar> eventBus;
+    private GeyserExtensionManager extensionManager;
 
     private Metrics metrics;
 
@@ -162,9 +163,19 @@ public class GeyserImpl implements GeyserApi {
         this.platformType = platformType;
         this.bootstrap = bootstrap;
 
+        GeyserLocale.finalizeDefaultLocale(this);
+
+        /* Initialize event bus */
+        this.eventBus = new GeyserEventBus();
+
+        /* Load Extensions */
+        this.extensionManager = new GeyserExtensionManager();
+        this.extensionManager.init();
+    }
+
+    public void initialize() {
         long startupTime = System.currentTimeMillis();
 
-        GeyserLocale.finalizeDefaultLocale(this);
         GeyserLogger logger = bootstrap.getGeyserLogger();
 
         logger.info("******************************************");
@@ -173,13 +184,8 @@ public class GeyserImpl implements GeyserApi {
         logger.info("");
         logger.info("******************************************");
 
-        /* Initialize event bus */
-        this.eventBus = new GeyserEventBus();
 
-        /* Load Extensions */
-        this.extensionManager = new GeyserExtensionManager();
-        this.extensionManager.init();
-
+        /* Enable extensions */
         this.extensionManager.enableExtensions();
         this.eventBus.fire(new GeyserPreInitializeEvent(this.extensionManager, this.eventBus));
 
@@ -193,7 +199,7 @@ public class GeyserImpl implements GeyserApi {
         MessageTranslator.init();
         MinecraftLocale.init();
 
-        start();
+        startInstance();
 
         GeyserConfiguration config = bootstrap.getGeyserConfig();
 
@@ -225,7 +231,7 @@ public class GeyserImpl implements GeyserApi {
         }
     }
 
-    private void start() {
+    private void startInstance() {
         this.scheduledThread = Executors.newSingleThreadScheduledExecutor(new DefaultThreadFactory("Geyser Scheduled Thread"));
 
         GeyserLogger logger = bootstrap.getGeyserLogger();
@@ -547,7 +553,7 @@ public class GeyserImpl implements GeyserApi {
 
         ResourcePack.PACKS.clear();
 
-        this.eventBus.fire(new GeyserShutdownEvent(this.extensionManager, this.commandManager(), this.eventBus));
+        this.eventBus.fire(new GeyserShutdownEvent(this.extensionManager, this.eventBus));
         this.extensionManager.disableExtensions();
 
         bootstrap.getGeyserLogger().info(GeyserLocale.getLocaleStringLog("geyser.core.shutdown.done"));
@@ -572,11 +578,12 @@ public class GeyserImpl implements GeyserApi {
     }
 
     @Override
+    @NonNull
     public GeyserExtensionManager extensionManager() {
         return this.extensionManager;
     }
 
-    @Override
+    @NonNull
     public GeyserCommandManager commandManager() {
         return this.bootstrap.getGeyserCommandManager();
     }
@@ -587,15 +594,18 @@ public class GeyserImpl implements GeyserApi {
     }
 
     @Override
-    public EventBus eventBus() {
+    @NonNull
+    public EventBus<EventRegistrar> eventBus() {
         return this.eventBus;
     }
 
+    @NonNull
     public RemoteServer defaultRemoteServer() {
         return getConfig().getRemote();
     }
 
     @Override
+    @NonNull
     public BedrockListener bedrockListener() {
         return getConfig().getBedrock();
     }
@@ -608,18 +618,26 @@ public class GeyserImpl implements GeyserApi {
         return Integer.parseInt(BUILD_NUMBER);
     }
 
-    public static GeyserImpl start(PlatformType platformType, GeyserBootstrap bootstrap) {
+    public static GeyserImpl load(PlatformType platformType, GeyserBootstrap bootstrap) {
         if (instance == null) {
             return new GeyserImpl(platformType, bootstrap);
+        }
+
+        return instance;
+    }
+
+    public static void start() {
+        if (instance == null) {
+            throw new RuntimeException("Geyser has not been loaded yet!");
         }
 
         // We've been reloaded
         if (instance.isShuttingDown()) {
             instance.shuttingDown = false;
-            instance.start();
+            instance.startInstance();
+        } else {
+            instance.initialize();
         }
-
-        return instance;
     }
 
     public GeyserLogger getLogger() {

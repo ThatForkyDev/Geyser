@@ -25,6 +25,8 @@
 
 package org.geysermc.api.util;
 
+import org.checkerframework.checker.nullness.qual.NonNull;
+
 public enum InputMode {
     UNKNOWN,
     KEYBOARD_MOUSE,
@@ -40,6 +42,7 @@ public enum InputMode {
      * @param id the InputMode identifier
      * @return The InputMode or {@link #UNKNOWN} if the mode wasn't found
      */
+    @NonNull
     public static InputMode fromId(int id) {
         return VALUES.length > id ? VALUES[id] : VALUES[0];
     }

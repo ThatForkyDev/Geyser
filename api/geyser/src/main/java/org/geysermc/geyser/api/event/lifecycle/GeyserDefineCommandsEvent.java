@@ -23,26 +23,35 @@
  * @link https://github.com/GeyserMC/Geyser
  */
 
-object Versions {
-    const val jacksonVersion = "2.13.2"
-    const val fastutilVersion = "8.5.2"
-    const val nettyVersion = "4.1.80.Final"
-    const val guavaVersion = "29.0-jre"
-    const val gsonVersion = "2.3.1" // Provided by Spigot 1.8.8
-    const val nbtVersion = "2.1.0"
-    const val websocketVersion = "1.5.1"
-    const val protocolVersion = "0bd459f"
-    // Not pinned to specific version due to possible gradle bug
-    // See comment in settings.gradle.kts
-    const val raknetVersion = "1.6.28-SNAPSHOT"
-    const val mcauthlibVersion = "d9d773e"
-    const val mcprotocollibversion = "9f78bd5"
-    const val packetlibVersion = "3.0"
-    const val adventureVersion = "4.9.3"
-    const val adventurePlatformVersion = "4.1.2"
-    const val junitVersion = "4.13.1"
-    const val checkerQualVersion = "3.19.0"
-    const val cumulusVersion  = "1.1.1"
-    const val eventsVersion = "1.0-SNAPSHOT"
-    const val log4jVersion  = "2.17.1"
+package org.geysermc.geyser.api.event.lifecycle;
+
+import org.checkerframework.checker.nullness.qual.NonNull;
+import org.geysermc.event.Event;
+import org.geysermc.geyser.api.command.Command;
+
+import java.util.Map;
+
+/**
+ * Called when commands are defined within Geyser.
+ *
+ * This event allows you to register new commands using the {@link #register(Command)}
+ * method and retrieve the default commands defined.
+ */
+public interface GeyserDefineCommandsEvent extends Event {
+
+    /**
+     * Registers the given {@link Command} into the Geyser
+     * command manager.
+     *
+     * @param command the command to register
+     */
+    void register(@NonNull Command command);
+
+    /**
+     * Gets all the registered built-in {@link Command}s.
+     *
+     * @return all the registered built-in commands
+     */
+    @NonNull
+    Map<String, Command> commands();
 }
