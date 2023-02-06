@@ -1,5 +1,5 @@
 [versions]
-geyser-api = "1.0.1-SNAPSHOT"
+geyser-api = "1.0.2-SNAPSHOT"
 cumulus = "1.1.1"
 events = "1.0-SNAPSHOT"
 jackson = "2.14.0"
